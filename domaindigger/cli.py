@@ -1,5 +1,6 @@
 import argparse
 import sys
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import Optional
 
 from domaindigger.banner import show_banner
@@ -89,11 +90,17 @@ def main(argv: Optional[list[str]] = None) -> int:
 
     console.print(f"[bold cyan][*] Resolving {len(all_subs)} subdomains...[/]")
     subs_sorted = sorted(all_subs)
-    batch = resolver.resolve_batch(subs_sorted)
     results = []
-    for sub in subs_sorted:
-        ips = batch.get(sub)
-        if ips:
+    with Progress(TextColumn("[progress.description]{task.description}"), BarColumn(), console=console) as p:
+        t = p.add_task("Resolving...", total=len(subs_sorted))
+        with ThreadPoolExecutor(max_workers=args.threads) as pool:
+            fut = {pool.submit(resolver.resolve_a, sub): sub for sub in subs_sorted}
+            for f in as_completed(fut):
+                sub = fut[f]
+                ips = f.result()
+                if ips:
+                    results.append({"subdomain": sub, "ips": ips, "resolved": True})
+                p.update(t, advance=1)
             results.append({"subdomain": sub, "ips": ips, "resolved": True})
 
     if args.http_probe and results:
