@@ -101,7 +101,6 @@ def main(argv: Optional[list[str]] = None) -> int:
                 if ips:
                     results.append({"subdomain": sub, "ips": ips, "resolved": True})
                 p.update(t, advance=1)
-            results.append({"subdomain": sub, "ips": ips, "resolved": True})
 
     if args.http_probe and results:
         console.print(f"[bold cyan][*] HTTP probing {len(results)} subdomains...[/]")
