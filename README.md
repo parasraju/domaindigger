@@ -43,6 +43,7 @@ domaindigger hackerone.com
 
 | Flag | Description |
 |---|---|
+| `-p` | 🌐 Probe HTTP/HTTPS and show status codes |
 | `-d` | 🔄 Enable DNS brute-force |
 | `-w <file>` | 📂 Custom wordlist (implies `-d`) |
 | `-t <n>` | ⚡ Threads (default: 20) |
@@ -54,6 +55,12 @@ domaindigger hackerone.com
 ```bash
 # quick passive scan
 domaindigger example.com
+
+# passive + brute-force
+domaindigger example.com -d
+
+# passive scan + HTTP probe
+domaindigger example.com -p
 
 # passive + brute-force
 domaindigger example.com -d

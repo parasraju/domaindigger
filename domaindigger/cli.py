@@ -9,6 +9,7 @@ from domaindigger.utils.output import export_results
 from domaindigger.scanner.bruteforce import brute_force
 from domaindigger.scanner.passive import gather_passive
 from domaindigger.scanner.dns import collect_dns
+from domaindigger.scanner.probe import probe_batch
 
 from rich.console import Console
 from rich.progress import Progress, TextColumn, BarColumn
@@ -24,6 +25,7 @@ def parse_args(argv: Optional[list[str]] = None) -> argparse.Namespace:
     p.add_argument("domain", help="Target domain (e.g. example.com)")
     p.add_argument("-d", "--bruteforce", action="store_true", help="Enable DNS brute-force")
     p.add_argument("-w", "--wordlist", help="Custom wordlist for brute-force")
+    p.add_argument("-p", "--http-probe", action="store_true", help="Probe HTTP/HTTPS endpoints")
     p.add_argument("-t", "--threads", type=int, default=20, help="Threads (default: 20)")
     p.add_argument("-o", "--output", help="Output file path")
     p.add_argument("-f", "--format", choices=["json", "csv", "txt"], help="Output format")
@@ -89,6 +91,16 @@ def main(argv: Optional[list[str]] = None) -> int:
             if data["resolved"]:
                 results.append(data)
     results.sort(key=lambda x: x["subdomain"])
+
+    if args.http_probe and results:
+        console.print(f"[bold cyan][*] HTTP probing {len(results)} subdomains...[/]")
+        subdomains = [r["subdomain"] for r in results]
+        probe_results = probe_batch(subdomains, threads=args.threads, timeout=5)
+        probe_map = {p["subdomain"]: p for p in probe_results}
+        for r in results:
+            p = probe_map.get(r["subdomain"], {})
+            r["http_status"] = p.get("http_status")
+            r["https_status"] = p.get("https_status")
 
     console.print()
     export_results(results, args.output, args.format)
