@@ -8,7 +8,6 @@ from domaindigger.utils.wordlist import load_wordlist
 from domaindigger.utils.output import export_results
 from domaindigger.scanner.bruteforce import brute_force
 from domaindigger.scanner.passive import gather_passive
-from domaindigger.scanner.dns import collect_dns
 from domaindigger.scanner.probe import probe_batch
 
 from rich.console import Console
@@ -80,15 +79,13 @@ def main(argv: Optional[list[str]] = None) -> int:
         return 0
 
     console.print(f"[bold cyan][*] Resolving {len(all_subs)} subdomains...[/]")
+    subs_sorted = sorted(all_subs)
+    batch = resolver.resolve_batch(subs_sorted)
     results = []
-    with Progress(TextColumn("[progress.description]{task.description}"), BarColumn(), console=console) as p:
-        t = p.add_task("Resolving...", total=len(all_subs))
-        for i, sub in enumerate(sorted(all_subs)):
-            p.update(t, completed=i + 1)
-            data = collect_dns(sub, resolver)
-            if data["resolved"]:
-                results.append(data)
-    results.sort(key=lambda x: x["subdomain"])
+    for sub in subs_sorted:
+        ips = batch.get(sub)
+        if ips:
+            results.append({"subdomain": sub, "ips": ips, "resolved": True})
 
     if args.http_probe and results:
         console.print(f"[bold cyan][*] HTTP probing {len(results)} subdomains...[/]")
