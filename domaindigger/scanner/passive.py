@@ -1,4 +1,5 @@
 import json
+import time
 import requests
 
 _HEADERS = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"}
@@ -6,15 +7,25 @@ _SESSION = requests.Session()
 _SESSION.headers.update(_HEADERS)
 
 
-def _get(url: str, timeout: int = 10):
-    try:
-        r = _SESSION.get(url, timeout=timeout)
-        if r.status_code == 429:
+def _get(url: str, timeout: int = 10, retries: int = 2):
+    for attempt in range(retries + 1):
+        try:
+            r = _SESSION.get(url, timeout=timeout)
+            if r.status_code == 429:
+                if attempt < retries:
+                    time.sleep(1)
+                    continue
+                return None
+            r.raise_for_status()
+            return r.text
+        except requests.exceptions.Timeout:
+            if attempt < retries:
+                time.sleep(0.5)
+                continue
             return None
-        r.raise_for_status()
-        return r.text
-    except Exception:
-        return None
+        except Exception:
+            return None
+    return None
 
 
 def _get_json(url: str, timeout: int = 10):
@@ -29,7 +40,7 @@ def _get_json(url: str, timeout: int = 10):
 
 def crtsh(domain: str) -> set[str]:
     subs = set()
-    data = _get_json(f"http://crt.sh/?q=%25.{domain}&output=json", timeout=15)
+    data = _get_json(f"http://crt.sh/?q=%25.{domain}&output=json", timeout=20)
     if data and isinstance(data, list):
         for e in data:
             for name in str(e.get("name_value", "")).split("\n"):

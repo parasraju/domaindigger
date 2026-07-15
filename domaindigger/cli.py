@@ -45,9 +45,7 @@ def main(argv: Optional[list[str]] = None) -> int:
     sources: list[str] = []
 
     console.print("\n[bold cyan][*] Passive reconnaissance...[/]")
-    with Progress(TextColumn("[progress.description]{task.description}"), console=console) as progress:
-        progress.add_task("Querying sources...", total=None)
-        passive = gather_passive(domain)
+    passive = gather_passive(domain)
     for src, subs in passive.items():
         if subs:
             sources.append(src)
