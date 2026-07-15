@@ -7,7 +7,7 @@ _SESSION = requests.Session()
 _SESSION.headers.update(_HEADERS)
 
 
-def _get(url: str, timeout: int = 10, retries: int = 2):
+def _get(url: str, timeout: int = 20, retries: int = 1):
     for attempt in range(retries + 1):
         try:
             r = _SESSION.get(url, timeout=timeout)
@@ -17,10 +17,11 @@ def _get(url: str, timeout: int = 10, retries: int = 2):
                     continue
                 return None
             r.raise_for_status()
+            r.encoding = "utf-8"
             return r.text
         except requests.exceptions.Timeout:
             if attempt < retries:
-                time.sleep(0.5)
+                time.sleep(1)
                 continue
             return None
         except Exception:
@@ -28,19 +29,20 @@ def _get(url: str, timeout: int = 10, retries: int = 2):
     return None
 
 
-def _get_json(url: str, timeout: int = 10):
+def _get_json(url: str, timeout: int = 20):
     t = _get(url, timeout)
     if t:
-        try:
-            return json.loads(t)
-        except json.JSONDecodeError:
-            return None
+        for enc in ("utf-8", "latin-1", None):
+            try:
+                return json.loads(t)
+            except (json.JSONDecodeError, UnicodeDecodeError):
+                continue
     return None
 
 
 def crtsh(domain: str) -> set[str]:
     subs = set()
-    data = _get_json(f"http://crt.sh/?q=%25.{domain}&output=json", timeout=20)
+    data = _get_json(f"http://crt.sh/?q=%25.{domain}&output=json", timeout=30)
     if data and isinstance(data, list):
         for e in data:
             for name in str(e.get("name_value", "")).split("\n"):
@@ -66,10 +68,10 @@ def urlscan(domain: str) -> set[str]:
 def hackertarget(domain: str) -> set[str]:
     subs = set()
     text = _get(f"https://api.hackertarget.com/hostsearch/?q={domain}")
-    if text:
+    if text and "API count exceeded" not in text:
         for line in text.strip().split("\n"):
             parts = line.split(",")
-            if parts:
+            if len(parts) >= 2:
                 sub = parts[0].strip().lower()
                 if sub.endswith("." + domain):
                     subs.add(sub)
