@@ -103,7 +103,7 @@ def hackertarget(domain: str):
             if attempt < 2:
                 time.sleep(2)
                 continue
-            return set(), "rate limited (API key required for more)")
+            return set(), "rate limited (API key required for more)"
         if err:
             return set(), err
         if "API count exceeded" in text:
