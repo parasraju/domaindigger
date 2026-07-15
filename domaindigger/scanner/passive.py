@@ -17,95 +17,106 @@ def _get(url: str, timeout: int = 20, retries: int = 1):
                 if attempt < retries:
                     time.sleep(1)
                     continue
-                return None
+                return None, "rate limited (429)"
             r.raise_for_status()
             r.encoding = "utf-8"
-            return r.text
+            return r.text, None
         except requests.exceptions.Timeout:
             if attempt < retries:
                 time.sleep(1)
                 continue
-            return None
+            return None, "timed out"
+        except requests.exceptions.HTTPError as e:
+            return None, f"HTTP {e.response.status_code}"
         except Exception:
-            return None
-    return None
+            return None, "connection failed"
+    return None, "max retries exceeded"
 
 
 def _get_json(url: str, timeout: int = 20):
-    t = _get(url, timeout)
+    t, err = _get(url, timeout)
+    if err:
+        return None, err
     if t:
         try:
-            return json.loads(t)
+            return json.loads(t), None
         except json.JSONDecodeError:
-            return None
-    return None
+            return None, "bad JSON response"
+    return None, "empty response"
 
 
-def _crt_fetch(url: str) -> list | None:
-    data = _get_json(url, timeout=20)
-    if data and isinstance(data, list):
-        return data
-    return None
+def _crt_fetch(url: str) -> tuple[list | None, str | None]:
+    data, err = _get_json(url, timeout=20)
+    if err:
+        return None, err
+    if isinstance(data, list):
+        return data, None
+    return None, "unexpected response format"
 
 
-def crtsh(domain: str) -> set[str]:
+def crtsh(domain: str) -> tuple[set[str], str | None]:
     urls = [
         f"https://crt.sh/?identity=%25.{domain}&output=json",
         f"http://crt.sh/?q=%25.{domain}&output=json",
     ]
-    data = None
+    errors = []
     with ThreadPoolExecutor(max_workers=2) as pool:
         fut = {pool.submit(_crt_fetch, u): u for u in urls}
         for f in as_completed(fut):
-            r = f.result()
-            if r:
-                data = r
-                break
-    subs = set()
-    if data:
-        for e in data:
-            for name in str(e.get("name_value", "")).split("\n"):
-                name = name.strip().lower()
-                if name.startswith("*."):
-                    name = name[2:]
-                if name.endswith("." + domain) and name != domain:
-                    subs.add(name)
-    return subs
+            data, err = f.result()
+            if data:
+                subs = set()
+                for e in data:
+                    for name in str(e.get("name_value", "")).split("\n"):
+                        name = name.strip().lower()
+                        if name.startswith("*."):
+                            name = name[2:]
+                        if name.endswith("." + domain) and name != domain:
+                            subs.add(name)
+                return subs, None
+            errors.append(err or "unknown")
+    return set(), "; ".join(errors)
 
 
-def urlscan(domain: str) -> set[str]:
+def urlscan(domain: str) -> tuple[set[str], str | None]:
+    data, err = _get_json(f"https://urlscan.io/api/v1/search/?q=domain:{domain}&size=100")
+    if err:
+        return set(), err
     subs = set()
-    data = _get_json(f"https://urlscan.io/api/v1/search/?q=domain:{domain}&size=100")
-    if data and "results" in data:
+    if "results" in data:
         for r in data["results"]:
             dom = r.get("page", {}).get("domain", "")
             if dom.endswith("." + domain):
                 subs.add(dom.lower())
-    return subs
+    return subs, None
 
 
-def hackertarget(domain: str) -> set[str]:
+def hackertarget(domain: str) -> tuple[set[str], str | None]:
+    text, err = _get(f"https://api.hackertarget.com/hostsearch/?q={domain}")
+    if err:
+        return set(), err
+    if "API count exceeded" in text:
+        return set(), "rate limited"
     subs = set()
-    text = _get(f"https://api.hackertarget.com/hostsearch/?q={domain}")
-    if text and "API count exceeded" not in text:
-        for line in text.strip().split("\n"):
-            parts = line.split(",")
-            if len(parts) >= 2:
-                sub = parts[0].strip().lower()
-                if sub.endswith("." + domain):
-                    subs.add(sub)
-    return subs
-
-
-def rapiddns(domain: str) -> set[str]:
-    subs = set()
-    html = _get(f"https://rapiddns.io/subdomain/{domain}")
-    if html:
-        for m in re.finditer(r">([a-zA-Z0-9._-]+\." + re.escape(domain) + r")<", html):
-            sub = m.group(1).lower()
-            if sub.endswith("." + domain) and sub != domain:
+    for line in text.strip().split("\n"):
+        parts = line.split(",")
+        if len(parts) >= 2:
+            sub = parts[0].strip().lower()
+            if sub.endswith("." + domain):
                 subs.add(sub)
-    return subs
+    return subs, None
+
+
+def rapiddns(domain: str) -> tuple[set[str], str | None]:
+    html, err = _get(f"https://rapiddns.io/subdomain/{domain}")
+    if err:
+        return set(), err
+    subs = set()
+    for m in re.finditer(r">([a-zA-Z0-9._-]+\." + re.escape(domain) + r")<", html):
+        sub = m.group(1).lower()
+        if sub.endswith("." + domain) and sub != domain:
+            subs.add(sub)
+    return subs, "ok" if not subs else None
 
 
 _SOURCES = [
@@ -116,14 +127,14 @@ _SOURCES = [
 ]
 
 
-def gather_passive(domain: str) -> dict[str, set[str]]:
-    results: dict[str, set[str]] = {}
+def gather_passive(domain: str) -> dict[str, tuple[set[str], str | None]]:
+    results: dict[str, tuple[set[str], str | None]] = {}
     with ThreadPoolExecutor(max_workers=len(_SOURCES)) as pool:
         fut = {pool.submit(func, domain): name for name, func in _SOURCES}
         for f in as_completed(fut):
             name = fut[f]
             try:
                 results[name] = f.result()
-            except Exception:
-                results[name] = set()
+            except Exception as e:
+                results[name] = (set(), str(e))
     return results
