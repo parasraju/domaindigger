@@ -1,0 +1,26 @@
+[build-system]
+requires = ["setuptools>=68.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "domaindigger"
+version = "1.0.0"
+description = "Domain reconnaissance made simple"
+readme = "README.md"
+requires-python = ">=3.10"
+license = {text = "MIT"}
+authors = [
+    {name = "Paras"}
+]
+dependencies = [
+    "rich>=13.0",
+    "pyfiglet>=1.0",
+    "requests>=2.31",
+    "dnspython>=2.6"
+]
+
+[project.scripts]
+domaindigger = "domaindigger.cli:main"
+
+[tool.setuptools.packages.find]
+include = ["domaindigger*"]
