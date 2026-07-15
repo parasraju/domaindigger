@@ -1,5 +1,7 @@
 import json
+import re
 import time
+from concurrent.futures import ThreadPoolExecutor, as_completed
 import requests
 
 _HEADERS = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"}
@@ -32,18 +34,35 @@ def _get(url: str, timeout: int = 20, retries: int = 1):
 def _get_json(url: str, timeout: int = 20):
     t = _get(url, timeout)
     if t:
-        for enc in ("utf-8", "latin-1", None):
-            try:
-                return json.loads(t)
-            except (json.JSONDecodeError, UnicodeDecodeError):
-                continue
+        try:
+            return json.loads(t)
+        except json.JSONDecodeError:
+            return None
+    return None
+
+
+def _crt_fetch(url: str) -> list | None:
+    data = _get_json(url, timeout=20)
+    if data and isinstance(data, list):
+        return data
     return None
 
 
 def crtsh(domain: str) -> set[str]:
+    urls = [
+        f"https://crt.sh/?identity=%25.{domain}&output=json",
+        f"http://crt.sh/?q=%25.{domain}&output=json",
+    ]
+    data = None
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        fut = {pool.submit(_crt_fetch, u): u for u in urls}
+        for f in as_completed(fut):
+            r = f.result()
+            if r:
+                data = r
+                break
     subs = set()
-    data = _get_json(f"http://crt.sh/?q=%25.{domain}&output=json", timeout=30)
-    if data and isinstance(data, list):
+    if data:
         for e in data:
             for name in str(e.get("name_value", "")).split("\n"):
                 name = name.strip().lower()
@@ -78,20 +97,33 @@ def hackertarget(domain: str) -> set[str]:
     return subs
 
 
+def rapiddns(domain: str) -> set[str]:
+    subs = set()
+    html = _get(f"https://rapiddns.io/subdomain/{domain}")
+    if html:
+        for m in re.finditer(r">([a-zA-Z0-9._-]+\." + re.escape(domain) + r")<", html):
+            sub = m.group(1).lower()
+            if sub.endswith("." + domain) and sub != domain:
+                subs.add(sub)
+    return subs
+
+
 _SOURCES = [
     ("crt.sh", crtsh),
+    ("RapidDNS", rapiddns),
     ("URLScan", urlscan),
     ("HackerTarget", hackertarget),
 ]
 
 
 def gather_passive(domain: str) -> dict[str, set[str]]:
-    results = {}
-    for name, func in _SOURCES:
-        try:
-            subs = func(domain)
-            if subs:
-                results[name] = subs
-        except Exception:
-            pass
+    results: dict[str, set[str]] = {}
+    with ThreadPoolExecutor(max_workers=len(_SOURCES)) as pool:
+        fut = {pool.submit(func, domain): name for name, func in _SOURCES}
+        for f in as_completed(fut):
+            name = fut[f]
+            try:
+                results[name] = f.result()
+            except Exception:
+                results[name] = set()
     return results

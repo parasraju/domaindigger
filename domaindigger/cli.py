@@ -46,11 +46,12 @@ def main(argv: Optional[list[str]] = None) -> int:
     console.print("\n[bold cyan][*] Passive reconnaissance...[/]")
     passive = gather_passive(domain)
     for src, subs in passive.items():
-        if subs:
-            sources.append(src)
-            before = len(all_subs)
-            all_subs.update(subs)
-            console.print(f"  [green]+[/] {src}: [cyan]{len(all_subs) - before}[/]")
+        sources.append(src)
+        before = len(all_subs)
+        all_subs.update(subs)
+        count = len(all_subs) - before
+        icon = "[green]+[/]" if count else "[dim]-[/]"
+        console.print(f"  {icon} {src}: [cyan]{count}[/]")
     console.print(f"  Total: [cyan]{len(all_subs)}[/]\n")
 
     if args.bruteforce or args.wordlist:
