@@ -18,6 +18,12 @@
     <img src="https://img.shields.io/badge/python-3.10%2B-blue?style=flat&logo=python">
     <img src="https://img.shields.io/badge/license-MIT-brightgreen">
   </p>
+  <p>
+    <a href="#-install"><img src="https://img.shields.io/badge/%E2%9A%A1-Install-7c3aed?style=for-the-badge"></a>
+    <a href="#-usage"><img src="https://img.shields.io/badge/%F0%9F%93%9A-Usage-2563eb?style=for-the-badge"></a>
+    <a href="#-sources"><img src="https://img.shields.io/badge/%F0%9F%94%8D-Sources-0d9488?style=for-the-badge"></a>
+    <a href="#-how-it-works"><img src="https://img.shields.io/badge/%F0%9F%8F%97-How%20It%20Works-475569?style=for-the-badge"></a>
+  </p>
 </div>
 
 ---
