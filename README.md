@@ -83,34 +83,6 @@ domaindigger example.com -w big.txt -t 50 -o results.json
 | [URLScan.io](https://urlscan.io) | Web Crawler | ❌ |
 | [HackerTarget](https://hackertarget.com) | DNS Enumeration | ❌ |
 
-## ⚙️ How It Works
-
-```
-┌──────────────┐
-│   Input      │  domain + flags
-└──────┬───────┘
-       ▼
-┌──────────────┐     ┌──────────────┐     ┌──────────────┐
-│   crt.sh     │     │   URLScan    │     │ HackerTarget │
-│  (parallel)  │────▶│  (parallel)  │────▶│  (parallel)  │
-└──────────────┘     └──────────────┘     └──────────────┘
-       │                     │                    │
-       └─────────────┬───────┴────────────┬───────┘
-                     ▼                    ▼
-            ┌────────────────┐   ┌────────────────┐
-            │  Dedup + DNS   │   │  Brute-force   │
-            │  Resolution    │   │  (optional -d) │
-            └───────┬────────┘   └───────┬────────┘
-                    │                    │
-                    └────────┬───────────┘
-                             ▼
-                    ┌────────────────┐
-                    │  Rich Output   │
-                    │  Table / JSON  │
-                    │  / CSV / TXT   │
-                    └────────────────┘
-```
-
 ## 📄 License
 
 MIT
