@@ -71,8 +71,8 @@ domaindigger example.com -p
 # passive + brute-force
 domaindigger example.com -d
 
-# custom wordlist, 50 threads, json output
-domaindigger example.com -w big.txt -t 50 -o results.json
+# custom wordlist, 50 threads
+domaindigger example.com -w big.txt -t 50 
 ```
 
 ## 🔍 Sources
