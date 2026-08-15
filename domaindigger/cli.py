@@ -10,6 +10,7 @@ from domaindigger.utils.output import export_results
 from domaindigger.scanner.bruteforce import brute_force
 from domaindigger.scanner.passive import gather_passive
 from domaindigger.scanner.probe import probe_batch
+from domaindigger.scanner.ports import TOP_PORTS, scan_batch
 
 from rich.console import Console
 from rich.progress import Progress, TextColumn, BarColumn
@@ -26,6 +27,7 @@ def parse_args(argv: Optional[list[str]] = None) -> argparse.Namespace:
     p.add_argument("-d", "--bruteforce", action="store_true", help="Enable DNS brute-force")
     p.add_argument("-w", "--wordlist", help="Custom wordlist for brute-force")
     p.add_argument("-p", "--http-probe", action="store_true", help="Probe HTTP/HTTPS endpoints")
+    p.add_argument("-P", "--port-scan", action="store_true", help="Scan open ports on discovered IPs")
     p.add_argument("-t", "--threads", type=int, default=20, help="Threads (default: 20)")
     p.add_argument("-o", "--output", help="Output file path")
     p.add_argument("-f", "--format", choices=["json", "csv", "txt"], help="Output format")
@@ -111,6 +113,23 @@ def main(argv: Optional[list[str]] = None) -> int:
             p = probe_map.get(r["subdomain"], {})
             r["http_status"] = p.get("http_status")
             r["https_status"] = p.get("https_status")
+
+    if args.port_scan and results:
+        console.print(f"[bold cyan][*] Port scanning {len(results)} hosts...[/]")
+        ips = sorted({ip for r in results for ip in r.get("ips", [])})
+        console.print(f"  [dim]Unique IPs: {len(ips)}[/]")
+        port_results = {}
+        with Progress(TextColumn("[progress.description]{task.description}"), BarColumn(), console=console) as p:
+            t = p.add_task("Scanning ports...", total=len(ips) * len(TOP_PORTS))
+            def cb(c, _): p.update(t, completed=c)
+            port_results = scan_batch(ips, threads=args.threads, timeout=3, on_progress=cb)
+        for r in results:
+            ports = set()
+            for ip in r.get("ips", []):
+                ports.update(port_results.get(ip, []))
+            r["open_ports"] = sorted(ports)
+        with_ports = sum(1 for r in results if r.get("open_ports"))
+        console.print(f"  [green]+[/] {with_ports} hosts with open ports\n")
 
     console.print()
     export_results(results, args.output, args.format)
